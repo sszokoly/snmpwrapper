@@ -222,6 +222,11 @@ async def exec_command(
     
     return result.stdout
 
+# Convenience functions for common use cases
+async def run_snmp_command(snmp_cmd: str, timeout: float = 10.0) -> CommandResult:
+    """Run SNMP command with appropriate timeout"""
+    return await run_command(snmp_cmd, timeout=timeout)
+
 async def get_interface_table(host: str = 'localhost', community: str = 'public') -> str:
     """Get SNMP interface table without header"""
     cmd = f'snmptable -v2c -c {community} -Cf "|" -Cw 300 {host} IF-MIB::ifTable | tail -n +2'
