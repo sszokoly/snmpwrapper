@@ -1,5 +1,6 @@
 
 import asyncio
+import os
 import subprocess
 import shlex
 from typing import Optional, Dict, Any, Tuple, Union
@@ -222,6 +223,118 @@ async def exec_command(
     
     return result.stdout
 
+
+async def send_snmp_trap(
+    host: str,
+    community: str = 'public',
+    timeout: float = 5.0,
+    trap_oid: str = '1.3.6.1.6.3.1.1.4.1.0',
+    varbinds: Optional[list] = None,
+    version: str = '2c',
+    port: int = 162,
+    uptime: str = '12345'
+) -> CommandResult:
+    """
+    Send SNMP trap to specified host.
+    
+    Args:
+        host: Target host to send trap to
+        community: SNMP community string  
+        timeout: Command timeout in seconds
+        trap_oid: Trap OID (enterprise OID for v1, notification OID for v2c/v3)
+        varbinds: List of variable bindings as strings (e.g., ['1.3.6.1.2.1.1.1.0 s "Test"'])
+        version: SNMP version ('1', '2c', or '3')
+        port: Target port (default 162)
+        
+    Returns:
+        CommandResult object with execution results
+        
+    Examples:
+        # Simple trap
+        result = await send_snmp_trap('192.168.1.100', 'public')
+        
+        # Trap with custom data
+        varbinds = [
+            '1.3.6.1.2.1.1.1.0 s "System Alert"',
+            '1.3.6.1.2.1.1.3.0 t 12345'
+        ]
+        result = await send_snmp_trap('192.168.1.100', varbinds=varbinds)
+    """
+    uptime = str(int(float(os.popen('cat /proc/uptime').read().split()[0]))*100)
+    
+    # Build base command
+    if version == '1':
+        # SNMPv1 trap format
+        cmd_parts = [
+            'snmptrap',
+            f'-v{version}',
+            f'-c {community}',
+            f'{host}:{port}',
+            trap_oid,
+            'localhost',  # agent address
+            '6',          # generic trap type (enterprise specific)
+            '1',          # specific trap type
+            uptime        # uptime
+        ]
+    else:
+        # SNMPv2c/v3 trap format
+        cmd_parts = [
+            'snmptrap',
+            f'-v{version}',
+            f'-c {community}',
+            f'{host}:{port}',
+            uptime,       # uptime
+            trap_oid      # notification OID
+        ]
+    
+    # Add variable bindings if provided
+    if varbinds:
+        cmd_parts.extend(varbinds)
+    else:
+        # Add default system description if no varbinds provided
+        cmd_parts.append('1.3.6.1.2.1.1.1.0 s "SNMP trap test message"')
+    
+    # Join command parts
+    cmd = ' '.join(cmd_parts)
+    print([cmd])
+    return await run_command(cmd, timeout=timeout)
+
+
+async def send_simple_trap(
+    host: str,
+    message: str,
+    community: str = 'public',
+    port: int = 162,
+    timeout: float = 5.0
+) -> bool:
+    """
+    Send a simple SNMP trap with a text message.
+    
+    Args:
+        host: Target host
+        message: Message to send in trap
+        community: SNMP community
+        port: Target port (default 162 for traps)
+        timeout: Command timeout
+        
+    Returns:
+        True if trap was sent successfully, False otherwise
+    """
+    varbinds = [f'1.3.6.1.2.1.1.1.0 s "{message}"']
+    
+    try:
+        result = await send_snmp_trap(
+            host=host,
+            community=community,
+            port=port,
+            timeout=timeout,
+            varbinds=varbinds
+        )
+        return result.success
+    except Exception:
+        return False
+
+
 # Convenience functions for common use cases
 async def run_snmp_command(snmp_cmd: str, timeout: float = 10.0) -> CommandResult:
     """Run SNMP command with appropriate timeout"""
@@ -232,10 +345,22 @@ async def get_interface_table(host: str = 'localhost', community: str = 'public'
     cmd = f'snmptable -v2c -c {community} -Cf "|" -Cw 300 {host} IF-MIB::ifTable | tail -n +2'
     return await exec_command(cmd, timeout=15.0)
 
+async def send_snmp_trap_dmcc_unregistered(
+    host: str = 'localhost',
+    message: str = 'DMCC stations unregistered',
+    community: str = 'public'
+) -> str:
+    try:
+        simple_result = await send_simple_trap(host, message, community)
+        print(f"Simple trap result: {simple_result}")
+    except Exception as e:
+        print(f"Trap error: {e}")
+
 async def main():
     """Example usage of the async shell wrapper"""
-    result  = await get_interface_table(host='localhost', community='public')
+    result  = await get_interface_table()
     print(result)
+    result = await send_snmp_trap_dmcc_unregistered()
     
 if __name__ == "__main__":
     # Run the main function in an event loop
