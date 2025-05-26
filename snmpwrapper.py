@@ -356,6 +356,12 @@ async def send_snmp_trap_dmcc_unregistered(
     except Exception as e:
         print(f"Trap error: {e}")
 
+async def get_avAesTsapiCtiLinkTable(host: str = 'localhost', community: str = 'public'):
+    """Get TSAPI service status"""
+    f'snmptable -v2c -c {community} -Cf "|" -Cw 300 {host} IF-MIB::ifTable | tail -n +2'
+    pass
+
+
 async def main():
     """Example usage of the async shell wrapper"""
     result  = await get_interface_table()
