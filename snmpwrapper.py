@@ -12,6 +12,9 @@ from asyncio import events
 from asyncio import tasks
 
 
+AES_SERVICES_MIB_PATH = './AV-APPLICATION-ENABLEMENT-SERVICES-MIB.txt'
+
+
 def asyncio_run(main, *, debug=None):
     """Execute the coroutine and return the result.
 
