@@ -343,10 +343,35 @@ async def run_snmp_command(snmp_cmd: str, timeout: float = 10.0) -> CommandResul
     """Run SNMP command with appropriate timeout"""
     return await run_command(snmp_cmd, timeout=timeout)
 
+
 async def get_interface_table(host: str = 'localhost', community: str = 'public') -> str:
     """Get SNMP interface table without header"""
-    cmd = f'snmptable -v2c -c {community} -Cf "|" -Cw 300 {host} IF-MIB::ifTable | tail -n +2'
-    return await exec_command(cmd, timeout=15.0)
+    cmd = f'snmptable -v2c -c {community} -Cf "|" -Cw 9999 {host} IF-MIB::ifTable | tail -n +3'
+    stdout = await exec_command(cmd, timeout=15.0)
+    return snmptable_to_dict(stdout)
+
+
+async def avAesTsapiCtiLinkTable(host: str = 'localhost', community: str = 'public', mib: str = AES_SERVICES_MIB_PATH) -> list:
+    """Get TSAPI CTI link table"""
+    cmd = f'snmptable -v2c -c {community} -Cf "|" -Cw 9999 {host} -m {mib} avAesTsapiCtiLinkTable | tail -n +3'
+    stdout = await exec_command(cmd, timeout=15.0)
+    return snmptable_to_dict(stdout)
+
+
+async def avAesDmccDeviceTable(host: str = 'localhost', community: str = 'public', mib: str = AES_SERVICES_MIB_PATH) -> list:
+    """Get DMCC device table"""
+    cmd = f'snmptable -v2c -c {community} -Cf "|" -Cw 9999 {host} -m {mib}  avAesDmccDeviceTable | tail -n +3'
+    stdout = await exec_command(cmd, timeout=15.0)
+    return snmptable_to_dict(stdout)
+
+def snmptable_to_dict(stdout) -> list:
+    """Get TSAPI service status"""
+    if not stdout:
+        return []
+    lines = stdout.splitlines()
+    keys = lines[0].split('|')
+    result = [dict(zip(keys, line.split('|'))) for line in lines[1:]]
+    return result
 
 async def send_snmp_trap_dmcc_unregistered(
     host: str = 'localhost',
@@ -358,12 +383,6 @@ async def send_snmp_trap_dmcc_unregistered(
         print(f"Simple trap result: {simple_result}")
     except Exception as e:
         print(f"Trap error: {e}")
-
-async def get_avAesTsapiCtiLinkTable(host: str = 'localhost', community: str = 'public'):
-    """Get TSAPI service status"""
-    f'snmptable -v2c -c {community} -Cf "|" -Cw 300 {host} IF-MIB::ifTable | tail -n +2'
-    pass
-
 
 async def main():
     """Example usage of the async shell wrapper"""
